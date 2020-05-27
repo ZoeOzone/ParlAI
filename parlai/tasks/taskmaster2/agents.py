@@ -17,6 +17,7 @@ from collections import Counter
 from parlai.core.opt import Opt
 from parlai.core.teachers import DialogTeacher
 from parlai.utils.misc import warn_once
+import json
 import parlai.utils.logging as logging
 
 import parlai.tasks.taskmaster2.build as build_
@@ -65,6 +66,21 @@ class _Abstract(DialogTeacher):
             return 'train'
 
     def _load_data(self, fold):
+        # load up the ontology
+        ontology = {}
+        for section in SECTIONS:
+            parts = []
+            fn = os.path.join(self.dpath, section + '.onto.json')
+            with open(fn, 'r') as f:
+                o = json.load(f)
+            assert len(o) == 1
+            o = list(o.values())[0]
+            for sub in o:
+                prefix = sub['prefix']
+                for anno in sub['annotations']:
+                    parts.append(f'{prefix}.{anno}')
+            ontology[section] = ' ; '.join(parts)
+
         chunks = []
         for section in SECTIONS:
             subset = pd.read_json(os.path.join(self.dpath, section + '.json'))
@@ -76,16 +92,19 @@ class _Abstract(DialogTeacher):
         chunks['fold'] = self._label_fold(chunks)
         # only the fold we need here
         chunks = chunks[chunks.fold == fold].reset_index()
+        chunks['ontology'] = chunks['domain'].apply(ontology.get)
         return chunks
 
     def _segments2text(self, segments):
         output = []
+        slots = {}
         for segment in segments:
             val = segment['text']
             for anno_ in segment['annotations']:
                 anno = anno_['name']
                 output.append(f'{anno} = {val}')
-        return " ; ".join(output)
+                slots[anno] = val
+        return " ; ".join(output), slots
 
     def setup_data(self, fold):
         domains_cnt = Counter()
@@ -103,14 +122,28 @@ class _Abstract(DialogTeacher):
             ):
                 # skip this one
                 utterances.pop(1)
+            if self.opt['include_ontology']:
+                yield {'text': f"ONTO: {row['ontology']}", 'label': ''}
             while utterances:
                 utt = utterances.pop(0)
-                seg = self._segments2text(utt.get('segments', []))
+                segtxt, slots = self._segments2text(utt.get('segments', []))
                 if utt['speaker'] == 'USER':
-                    yield (utt['text'], 'APICALL: ' + seg), first
+                    yield {
+                        'text': utt['text'],
+                        'label': f'APICALL: {segtxt}',
+                        'domain': row['domain'],
+                        'slots': slots,
+                        'type': 'apicall',
+                    }, first
                     first = False
                 elif utt['speaker'] == 'ASSISTANT':
-                    yield ('APIRESP: ' + seg, utt['text']), first
+                    yield {
+                        'text': f'APIRESP: {segtxt}',
+                        'label': utt['text'],
+                        'domain': row['domain'],
+                        'slots': slots,
+                        'type': 'apiresp',
+                    }, first
                     first = False
         logging.debug(f"Fold {fold} domains: {domains_cnt}")
 
