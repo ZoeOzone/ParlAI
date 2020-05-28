@@ -13,6 +13,7 @@ splits.
 
 import os
 import pandas as pd
+import hashlib
 from collections import Counter
 from parlai.core.opt import Opt
 from parlai.core.teachers import DialogTeacher
@@ -60,7 +61,7 @@ class _Abstract(DialogTeacher):
         """
         Hash function.
         """
-        h = abs(hash(x)) % 10
+        h = int(hashlib.sha1(x.encode('utf-8')).hexdigest(), 16) % 10
         if h == 0:
             return 'valid'
         elif h == 1:
