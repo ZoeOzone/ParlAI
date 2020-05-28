@@ -123,7 +123,8 @@ class _Abstract(DialogTeacher):
                 # skip this one
                 utterances.pop(1)
             if self.opt['include_ontology']:
-                yield {'text': f"ONTO: {row['ontology']}", 'label': ''}
+                yield {'text': f"ONTO: {row['ontology']}", 'label': ''}, True
+                first = False
             while utterances:
                 utt = utterances.pop(0)
                 segtxt, slots = self._segments2text(utt.get('segments', []))
