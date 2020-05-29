@@ -121,7 +121,7 @@ class _Abstract(DialogTeacher):
             prefix = teacher_action['type']
             keys = list(model_response['metrics'].keys())
             for k in keys:
-                self.metrics.add(f'prefix_{k}', model_response['metrics'][k])
+                self.metrics.add(f'{prefix}_{k}', model_response['metrics'][k])
 
         if 'text' not in model_response or not labels or 'type' not in teacher_action:
             return
@@ -139,18 +139,19 @@ class _Abstract(DialogTeacher):
                 try:
                     slot, guess = slot_guess.split(' = ')
                 except ValueError:
-                    print("slot_guess")
                     continue
                 if teacher_action['slots'].get(slot) == guess:
-                    self.metrics.add('inform', AverageMetric(1))
+                    self.metrics.add('slot_p', AverageMetric(1))
                     correct += 1
                 else:
-                    self.metrics.add('inform', AverageMetric(0))
+                    self.metrics.add('slot_p', AverageMetric(0))
                     logging.debug(
                         f"Bad slot guess '{slot_guess}' != {teacher_action['slots']}"
                     )
-            success = int(correct == len(teacher_action['slots']))
-            self.metrics.add('success', AverageMetric(success))
+            if teacher_action['slots']:
+                self.metrics.add(
+                    'slot_r', AverageMetric(correct, len(teacher_action['slots']))
+                )
 
         elif teacher_action['type'] == 'apiresp':
             # compute delexicalized string metrics
