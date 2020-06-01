@@ -203,7 +203,7 @@ class _Abstract(DialogTeacher):
                 # skip this one
                 utterances.pop(1)
             if self.opt['include_ontology']:
-                yield {'text': f"Onto: {row['ontology']}", 'label': ''}, True
+                yield {'text': f"{ONTO_TOKEN} {row['ontology']}", 'label': ''}, True
                 first = False
             while utterances:
                 utt = utterances.pop(0)
